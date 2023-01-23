@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  packed_scene_editor_plugin.h                                          */
+/*  scene_preview.h                                                       */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,44 +28,88 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#ifndef PACKED_SCENE_EDITOR_PLUGIN_H
-#define PACKED_SCENE_EDITOR_PLUGIN_H
+#ifndef SCENE_PREVIEW_H
+#define SCENE_PREVIEW_H
 
 #include "editor/editor_inspector.h"
 #include "editor/editor_plugin.h"
-#include "scene/gui/box_container.h"
+#include "scene/2d/camera_2d.h"
+#include "scene/3d/camera_3d.h"
+#include "scene/3d/light_3d.h"
+#include "scene/3d/mesh_instance_3d.h"
+#include "scene/gui/subviewport_container.h"
+#include "scene/resources/camera_attributes.h"
+#include "scene/resources/material.h"
 
-class PackedSceneEditor : public VBoxContainer {
-	GDCLASS(PackedSceneEditor, VBoxContainer);
+class SubViewport;
+class TextureButton;
 
-	Ref<PackedScene> packed_scene;
-	Button *open_scene_button = nullptr;
-	Button *open_preview_button = nullptr;
-	Control *preview = nullptr;
+class Scene3DPreview : public SubViewportContainer {
+	GDCLASS(Scene3DPreview, SubViewportContainer);
 
-	void _on_open_scene_pressed();
-	void _on_open_preview_pressed();
+	float rot_x;
+	float rot_y;
+
+	SubViewport *viewport = nullptr;
+	Node3D *current = nullptr;
+	Node3D *rotation = nullptr;
+	DirectionalLight3D *light1 = nullptr;
+	DirectionalLight3D *light2 = nullptr;
+	Camera3D *camera = nullptr;
+	Ref<CameraAttributesPractical> camera_attributes;
+
+	TextureButton *light_1_switch = nullptr;
+	TextureButton *light_2_switch = nullptr;
+
+	struct ThemeCache {
+		Ref<Texture2D> light_1_on;
+		Ref<Texture2D> light_1_off;
+		Ref<Texture2D> light_2_on;
+		Ref<Texture2D> light_2_off;
+	} theme_cache;
+
+	void _button_pressed(Node *p_button);
+	void _update_rotation();
+
+	AABB _calculate_aabb(Node3D *p_node);
+
+protected:
+	virtual void _update_theme_item_cache() override;
+	void _notification(int p_what);
+	void gui_input(const Ref<InputEvent> &p_event) override;
+
+public:
+	void edit(Node3D *p_node);
+	Scene3DPreview();
+};
+
+class Scene2DPreview : public SubViewportContainer {
+	GDCLASS(Scene2DPreview, SubViewportContainer);
+
+	Node2D *current = nullptr;
+	SubViewport *viewport = nullptr;
+
+protected:
+	void _notification(int p_what);
+	void gui_input(const Ref<InputEvent> &p_event) override;
+
+public:
+	void edit(Node2D *p_node);
+	Scene2DPreview();
+};
+
+class SceneControlPreview : public SubViewportContainer {
+	GDCLASS(SceneControlPreview, SubViewportContainer);
+
+	Control *current = nullptr;
+	SubViewport *viewport = nullptr;
 
 protected:
 	void _notification(int p_what);
 
 public:
-	PackedSceneEditor(Ref<PackedScene> &p_packed_scene);
+	void edit(Control *p_node);
+	SceneControlPreview();
 };
 
-class EditorInspectorPluginPackedScene : public EditorInspectorPlugin {
-	GDCLASS(EditorInspectorPluginPackedScene, EditorInspectorPlugin);
-
-public:
-	virtual bool can_handle(Object *p_object) override;
-	virtual void parse_begin(Object *p_object) override;
-};
-
-class PackedSceneEditorPlugin : public EditorPlugin {
-	GDCLASS(PackedSceneEditorPlugin, EditorPlugin);
-
-public:
-	PackedSceneEditorPlugin();
-};
-
-#endif // PACKED_SCENE_EDITOR_PLUGIN_H
+#endif // SCENE_PREVIEW_H

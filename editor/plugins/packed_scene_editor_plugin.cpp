@@ -31,6 +31,8 @@
 #include "packed_scene_editor_plugin.h"
 
 #include "editor/editor_node.h"
+#include "editor/plugins/scene_preview.h"
+#include "scene/2d/node_2d.h"
 #include "scene/gui/button.h"
 #include "scene/resources/packed_scene.h"
 #include "scene/scene_string_names.h"
@@ -44,18 +46,68 @@ void PackedSceneEditor::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_ENTER_TREE:
 		case NOTIFICATION_THEME_CHANGED: {
-			open_scene_button->set_icon(get_theme_icon(SNAME("PackedScene"), SNAME("EditorIcons")));
+			if (open_scene_button != nullptr) {
+				open_scene_button->set_icon(get_theme_icon(SNAME("PackedScene"), SNAME("EditorIcons")));
+			}
+			if (open_preview_button != nullptr) {
+				open_preview_button->set_icon(get_theme_icon(SNAME("PackedScene"), SNAME("EditorIcons")));
+			}
 		} break;
+	}
+}
+
+void PackedSceneEditor::_on_open_preview_pressed() {
+	if (preview == nullptr) {
+		Node *root = packed_scene->instantiate();
+		if (Object::cast_to<Node3D>(root) != nullptr) {
+			Scene3DPreview *preview_3d = memnew(Scene3DPreview());
+			preview_3d->edit(Object::cast_to<Node3D>(root));
+			preview = preview_3d;
+		} else if (Object::cast_to<Node2D>(root) != nullptr) {
+			Scene2DPreview *preview_2d = memnew(Scene2DPreview());
+			preview_2d->edit(Object::cast_to<Node2D>(root));
+			preview = preview_2d;
+		} else {
+			SceneControlPreview *preview_control = memnew(SceneControlPreview());
+			preview_control->edit(Object::cast_to<Control>(root));
+			preview = preview_control;
+		}
+		add_child(preview);
+		move_child(preview, 0);
+	} else {
+		preview->queue_free();
+		preview = nullptr;
 	}
 }
 
 PackedSceneEditor::PackedSceneEditor(Ref<PackedScene> &p_packed_scene) {
 	packed_scene = p_packed_scene;
 
-	open_scene_button = EditorInspector::create_inspector_action_button(TTR("Open Scene"));
-	open_scene_button->connect(SNAME("pressed"), callable_mp(this, &PackedSceneEditor::_on_open_scene_pressed));
-	open_scene_button->set_disabled(!packed_scene->get_path().get_file().is_valid_filename());
-	add_child(open_scene_button);
+	HBoxContainer *buttons = memnew(HBoxContainer);
+	add_child(buttons);
+	buttons->set_alignment(ALIGNMENT_CENTER);
+
+	if (packed_scene->get_path().get_file().is_valid_filename()) {
+		open_scene_button = EditorInspector::create_inspector_action_button(TTR("Open"));
+		open_scene_button->connect(SNAME("pressed"), callable_mp(this, &PackedSceneEditor::_on_open_scene_pressed));
+		buttons->add_child(open_scene_button);
+	}
+
+	Ref<SceneState> state = packed_scene->get_state();
+	if (state->get_node_count() > 0) {
+		StringName root_type = state->get_node_type(0);
+		for (const StringName &base_type : Vector<String>{ "Node2D", "Node3D", "Control" }) {
+			if (ClassDB::is_parent_class(root_type, base_type)) {
+				open_preview_button = EditorInspector::create_inspector_action_button(TTR("Preview"));
+				open_preview_button->connect(SNAME("pressed"), callable_mp(this, &PackedSceneEditor::_on_open_preview_pressed));
+				if (state->get_node_count() <= 25) {
+					_on_open_preview_pressed();
+				}
+				buttons->add_child(open_preview_button);
+				break;
+			}
+		}
+	}
 
 	add_child(memnew(Control)); // Add padding before the regular properties.
 }
